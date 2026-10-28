@@ -93,4 +93,4 @@ class Monitor:
 
 def bar(label, percentage):
     filled = round(max(0, min(100, percentage)) / 5)
-    return f'{label}: [{"#" * filled}{"-" * (20 - filled)}] {percentage:5.1f}%'
+    return f'{label}: {"█" * filled}{"░" * (20 - filled)} {percentage:5.1f}%'

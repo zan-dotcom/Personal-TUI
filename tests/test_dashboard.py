@@ -1,14 +1,26 @@
 import io
 import json
+import re
 import unittest
 from unittest.mock import patch
 
 from personal_tui.app import render
 from personal_tui.metrics import Monitor
 from personal_tui.weather import Weather
+from personal_tui.layout import dashboard
 
 
 class DashboardFeatureTests(unittest.TestCase):
+    def test_nord_color_preserves_layout_and_respects_no_color(self):
+        sections = [('SYSTEM', ['CPU: █████░░░░░ 75.0%'])]
+        colored = dashboard(sections, width=100, color=True)
+        plain = re.sub(r'\x1b\[[0-9;]*m', '', colored)
+        self.assertIn('\x1b[48;2;46;52;64m', colored)
+        self.assertIn('\x1b[38;2;235;203;139m75.0%', colored)
+        self.assertTrue(all(len(line) == 100 for line in plain.splitlines()))
+        with patch('personal_tui.layout.sys.stdout.isatty', return_value=True), patch.dict('os.environ', {'NO_COLOR': '1'}):
+            self.assertNotIn('\x1b', dashboard(sections, width=24))
+
     def test_weather_response_and_cache(self):
         payload = {'current_condition': [{'temp_C': '29', 'FeelsLikeC': '33', 'weatherDesc': [{'value': 'Partly cloudy'}]}]}
         with patch('personal_tui.weather.urlopen') as request:

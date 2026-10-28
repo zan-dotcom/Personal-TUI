@@ -16,6 +16,10 @@ to edit tasks and notes; metrics refresh after commands in that mode.
 ## Weather and storage dashboard
 
 Panels arrange into two columns in wide terminals and stack in narrow terminals.
+The Nord theme uses a polar-night background, frost-blue rounded borders, block
+meters, and green/amber/red utilization indicators inspired by btop. Color is
+enabled automatically in interactive terminals; redirected output stays plain.
+Set `NO_COLOR=1` to disable color. A Unicode-capable terminal is recommended.
 Weather shows current conditions, temperature and feels-like temperature in Celsius.
 Choose your city explicitly (or set `PERSONAL_TUI_CITY`):
 
