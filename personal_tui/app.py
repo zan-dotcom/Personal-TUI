@@ -5,6 +5,11 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
+
+from personal_tui.metrics import Monitor
+from personal_tui.weather import Weather
+from personal_tui.layout import dashboard
 
 
 def load(path):
@@ -41,18 +46,22 @@ def save(path, data):
             temporary.unlink(missing_ok=True)
 
 
-def render(data):
-    lines = ["PERSONAL TUI", "============", "", "Tasks"]
+def render(data, metrics=None, weather=None, storage=None, width=None):
+    tasks = []
     for index, task in enumerate(data["tasks"], 1):
         mark = "x" if task["done"] else " "
-        lines.append(f"  {index}. [{mark}] {task['text']}")
+        tasks.append(f"{index}. [{mark}] {task['text']}")
     if not data["tasks"]:
-        lines.append("  No tasks yet. Add one with: add Your task")
-    lines.extend(["", "Notes"])
-    lines.extend(f"  {i}. {note}" for i, note in enumerate(data["notes"], 1))
-    if not data["notes"]:
-        lines.append("  No notes yet. Add one with: note Your note")
-    return "\n".join(lines)
+        tasks.append("No tasks yet. Add one with: add Your task")
+    notes = [f"{i}. {note}" for i, note in enumerate(data['notes'], 1)]
+    return dashboard([
+        ('SYSTEM', metrics or ['Metrics unavailable']),
+        ('WEATHER', weather or ['Set a location with --city']),
+        ('STORAGE', storage or ['Storage unavailable']),
+        ('TASKS', tasks),
+        ('NOTES', notes or ['No notes yet. Add one with: note Your note']),
+        ('CONTROLS', ['add / done / delete / note / unnote', 'help: all commands | quit: exit', '--watch: live view | Ctrl+C: exit']),
+    ], width=width)
 
 
 def apply(data, command):
@@ -102,18 +111,39 @@ def main():
     default = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
     parser.add_argument("--data", type=Path, default=default / "personal-tui/data.json")
     parser.add_argument("--command", help="Run one command and exit")
+    parser.add_argument("--watch", action="store_true", help="Live system dashboard; Ctrl+C to exit")
+    parser.add_argument("--city", default=os.environ.get('PERSONAL_TUI_CITY', ''), help="Weather location, e.g. Kuala Lumpur")
+    parser.add_argument("--disk", type=Path, default=Path('/'), help="Filesystem path to monitor (default: /)")
     args = parser.parse_args()
+    if args.watch and args.command is not None:
+        parser.error("--watch and --command cannot be used together")
+    monitor = Monitor(args.disk)
+    weather = Weather(args.city)
+    def view(data):
+        return render(data, monitor.sample(), weather.sample(), monitor.storage())
     try:
         data = load(args.data)
+        if args.watch:
+            try:
+                while True:
+                    output = view(data)
+                    if os.isatty(1):
+                        print("\033[2J\033[H", end="")
+                    print(output, flush=True)
+                    print("\nLive usage · refreshes every second · Ctrl+C to exit", flush=True)
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print()
+                return
         if args.command is not None:
             if args.command.strip() == "help":
                 print(HELP)
                 return
             if apply(data, args.command):
                 save(args.data, data)
-            print(render(data))
+            print(view(data))
             return
-        print(render(data))
+        print(view(data))
         print("\nType help for commands; quit to exit.")
         while True:
             try:
@@ -129,7 +159,7 @@ def main():
             try:
                 if apply(data, command):
                     save(args.data, data)
-                print(render(data))
+                print(view(data))
             except ValueError as error:
                 print(f"Error: {error}")
     except (OSError, ValueError) as error:
